@@ -14,7 +14,7 @@ data "aws_caller_identity" "current" {}
 data "template_file" "ecs_container_definition" {
   template = file("./base.tpl")
   vars = {
-    name    = "bradtest"
+    name    = var.tag_name
     image   = "sbwise/flaskhelloworld:0.1.0"
   }
 }
@@ -78,7 +78,7 @@ resource "aws_ecs_service" "ecs_service" {
 
   load_balancer {
     target_group_arn = aws_alb_target_group.ecs_lb_tg.arn
-    container_name   = "bradtest"
+    container_name   = var.tag_name
     container_port   = "5000"
   }
 
