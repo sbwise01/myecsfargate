@@ -2,10 +2,10 @@ terraform {
   required_version = "~> 0.12.30"
 
   backend "s3" {
-    bucket = "bw-terraform-state-us-east-1"
+    bucket = "brad-terraform-state-us-east-1"
     key    = "ecsfargate.tfstate"
     region = "us-east-1"
-    profile = "foghorn-io-brad"
+    profile = "supportfog"
   }
 }
 
@@ -19,15 +19,30 @@ data "template_file" "ecs_container_definition" {
   }
 }
 
+data "aws_route53_zone" "zone" {
+  name         = "superscalability.com."
+}
+
 provider "aws" {
-  region  = "us-west-2"
-  profile = "foghorn-io-brad"
+  region  = "us-east-1"
+  profile = "supportfog"
   version = "~> 3.27"
 }
 
 resource "aws_key_pair" "main" {
   key_name_prefix = "ecskey"
   public_key      = file("~/.ssh/id_rsa.pub")
+}
+
+resource "aws_route53_record" "ecs_task" {
+  name    = var.tag_name
+  type    = "A"
+  zone_id = data.aws_route53_zone.zone.zone_id
+  alias {
+    evaluate_target_health = false
+    name                   = aws_alb.ecs_lb.dns_name
+    zone_id                = aws_alb.ecs_lb.zone_id
+  }
 }
 
 module "ecs" {
