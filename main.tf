@@ -195,6 +195,35 @@ module "aws_vpc" {
   }
 }
 
+module "msk" {
+  source                              = "./modules/m-msk"
+  cluster_name                        = "${var.tag_name}-msk"
+  broker_node_client_subnets          = module.aws_vpc.subnets.private.*.id
+  broker_node_instance_type           = "kafka.m5.xlarge"
+  number_of_broker_nodes              = "3"
+  kafka_version                       = "2.2.1"
+  ecs_ingress_sg_id                   = aws_security_group.ecs_task.id
+  tags                                = {
+    CostCenter  = var.tag_costcenter
+    Name        = var.tag_name
+    Environment = var.tag_environment
+  }
+  cidr_range                          = module.aws_vpc.vpc.cidr_block
+  vpc_id                              = module.aws_vpc.vpc.id
+  server_properties = [
+    "auto.create.topics.enable=true",
+    "default.replication.factor=3",
+    "min.insync.replicas=2",
+    "num.io.threads=8",
+    "num.network.threads=5",
+    "num.partitions=10",
+    "num.replica.fetchers=2",
+    "socket.request.max.bytes=104857600",
+    "delete.topic.enable=true",
+    "unclean.leader.election.enable=true"
+  ]
+}
+
 variable "ecs_url" {}
 variable "ecs_username" {}
 variable "ecs_password" {}
