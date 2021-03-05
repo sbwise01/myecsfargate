@@ -73,7 +73,7 @@ resource "aws_ecs_service" "ecs_service" {
   name                  = "${var.tag_name}-flaskhelloworld"
   cluster               = var.tag_name
   task_definition       = aws_ecs_task_definition.ecs_task.arn
-  desired_count         = 1
+  desired_count         = 2
   launch_type           = "FARGATE"
 
   load_balancer {
@@ -86,6 +86,62 @@ resource "aws_ecs_service" "ecs_service" {
     security_groups = list(aws_security_group.ecs_task.id)
     subnets         = module.aws_vpc.subnets.private.*.id
   }
+
+  lifecycle {
+    ignore_changes = [desired_count]
+  }
+}
+
+resource "aws_appautoscaling_target" "ecs_service_autoscaling_target" {
+  max_capacity       = 400
+  min_capacity       = 2
+  resource_id        = "service/${var.tag_name}/${var.tag_name}-flaskhelloworld"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+resource "aws_appautoscaling_policy" "ecs_service_autoscaling_policy" {
+  name               = "${var.tag_name}-flaskhelloworld-scaling-policy"
+  resource_id        = aws_appautoscaling_target.ecs_service_autoscaling_target.resource_id
+  scalable_dimension = aws_appautoscaling_target.ecs_service_autoscaling_target.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.ecs_service_autoscaling_target.service_namespace
+  policy_type        = "StepScaling"
+
+  step_scaling_policy_configuration {
+    adjustment_type         = "ChangeInCapacity"
+    cooldown                = 120
+    metric_aggregation_type = "Average"
+
+    step_adjustment {
+      metric_interval_upper_bound = 0
+      scaling_adjustment          = -1 # scale in slower than scale out
+    }
+
+    step_adjustment {
+      metric_interval_lower_bound = 0
+      scaling_adjustment          = 2 # scale out fast, this is a high throughput consumer
+    }
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "ecs_service_autoscaling_alarm" {
+  alarm_name          = "${var.tag_name}-flaskhelloworld-autoscaling-alarm"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "RequestCountPerTarget"
+  namespace           = "AWS/ApplicationELB"
+  period              = "60"
+  statistic           = "Sum"
+  threshold           = "3"
+
+  dimensions = {
+    TargetGroup = aws_alb_target_group.ecs_lb_tg.arn_suffix
+    LoadBalancer = aws_alb.ecs_lb.arn_suffix
+  }
+
+  alarm_description = "This metric monitors load balancer request count per target of ecs_service flaskhelloworld tasks"
+  alarm_actions     = [aws_appautoscaling_policy.ecs_service_autoscaling_policy.arn]
+  ok_actions        = [aws_appautoscaling_policy.ecs_service_autoscaling_policy.arn]
 }
 
 resource "aws_security_group" "ecs_task" {
