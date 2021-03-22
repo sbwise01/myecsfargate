@@ -14,8 +14,10 @@ data "aws_caller_identity" "current" {}
 data "template_file" "ecs_container_definition" {
   template = file("./base.tpl")
   vars = {
-    name    = var.tag_name
-    image   = "sbwise/flaskhelloworld:0.1.0"
+    name     = var.tag_name
+    image    = "sbwise/flaskhelloworld:0.1.0"
+    region   = "us-east-1"
+    loggroup = aws_cloudwatch_log_group.awslogs-ecs-fargate-sumo.name
   }
 }
 
@@ -60,9 +62,37 @@ docker login -u "${var.ecs_username}" -p "${var.ecs_password}"
 EOF
 }
 
+resource "aws_cloudwatch_log_group" "awslogs-ecs-fargate-sumo" {
+  name = "awslogs-ecs-fargate-sumo"
+}
+
+resource "aws_iam_role" "ecs_task_execution_role" {
+  name               = "ecs_task_execution_role"
+  path               = "/ecsservices/"
+  assume_role_policy = data.aws_iam_policy_document.ecs-task-assume-policy.json
+}
+
+resource "aws_iam_role_policy_attachment" "ecs-task-execution-role-policy" {
+  role       = aws_iam_role.ecs_task_execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+data "aws_iam_policy_document" "ecs-task-assume-policy" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["ecs-tasks.amazonaws.com"]
+    }
+  }
+}
+
 resource "aws_ecs_task_definition" "ecs_task" {
   family                   = "${var.tag_name}-flaskhelloworld"
   container_definitions    = data.template_file.ecs_container_definition.rendered
+  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
   cpu                      = "512"
   memory                   = "1024"
   network_mode             = "awsvpc"
