@@ -2,10 +2,10 @@ terraform {
   required_version = "~> 0.12.30"
 
   backend "s3" {
-    bucket = "brad-terraform-state-us-east-1"
+    bucket = "bw-terraform-state-us-east-1"
     key    = "ecsfargate.tfstate"
     region = "us-east-1"
-    profile = "supportfog"
+    profile = "foghorn-io-brad"
   }
 }
 
@@ -16,18 +16,19 @@ data "template_file" "ecs_container_definition" {
   vars = {
     name     = var.tag_name
     image    = "sbwise/flaskhelloworld:0.1.0"
-    region   = "us-east-1"
+    region   = var.region
     loggroup = aws_cloudwatch_log_group.awslogs-ecs-fargate-sumo.name
   }
 }
 
-data "aws_route53_zone" "zone" {
-  name         = "superscalability.com."
+resource "aws_route53_zone" "zone" {
+  name              = "aws.bradandmarsha.com"
+  delegation_set_id = "N03386422VXZJKGR4YO18"
 }
 
 provider "aws" {
-  region  = "us-east-1"
-  profile = "supportfog"
+  region  = var.region
+  profile = var.profile
   version = "~> 3.27"
 }
 
@@ -39,7 +40,7 @@ resource "aws_key_pair" "main" {
 resource "aws_route53_record" "ecs_task" {
   name    = var.tag_name
   type    = "A"
-  zone_id = data.aws_route53_zone.zone.zone_id
+  zone_id = aws_route53_zone.zone.zone_id
   alias {
     evaluate_target_health = false
     name                   = aws_alb.ecs_lb.dns_name
@@ -281,34 +282,34 @@ module "aws_vpc" {
   }
 }
 
-module "msk" {
-  source                              = "./modules/m-msk"
-  cluster_name                        = "${var.tag_name}-msk"
-  broker_node_client_subnets          = module.aws_vpc.subnets.private.*.id
-  broker_node_instance_type           = "kafka.m5.xlarge"
-  number_of_broker_nodes              = "3"
-  kafka_version                       = "2.2.1"
-  ecs_ingress_sg_id                   = aws_security_group.ecs_task.id
-  tags                                = {
-    CostCenter  = var.tag_costcenter
-    Name        = var.tag_name
-    Environment = var.tag_environment
-  }
-  cidr_range                          = module.aws_vpc.vpc.cidr_block
-  vpc_id                              = module.aws_vpc.vpc.id
-  server_properties = [
-    "auto.create.topics.enable=true",
-    "default.replication.factor=3",
-    "min.insync.replicas=2",
-    "num.io.threads=8",
-    "num.network.threads=5",
-    "num.partitions=10",
-    "num.replica.fetchers=2",
-    "socket.request.max.bytes=104857600",
-    "delete.topic.enable=true",
-    "unclean.leader.election.enable=true"
-  ]
-}
+#module "msk" {
+#  source                              = "./modules/m-msk"
+#  cluster_name                        = "${var.tag_name}-msk"
+#  broker_node_client_subnets          = module.aws_vpc.subnets.private.*.id
+#  broker_node_instance_type           = "kafka.m5.xlarge"
+#  number_of_broker_nodes              = "3"
+#  kafka_version                       = "2.2.1"
+#  ecs_ingress_sg_id                   = aws_security_group.ecs_task.id
+#  tags                                = {
+#    CostCenter  = var.tag_costcenter
+#    Name        = var.tag_name
+#    Environment = var.tag_environment
+#  }
+#  cidr_range                          = module.aws_vpc.vpc.cidr_block
+#  vpc_id                              = module.aws_vpc.vpc.id
+#  server_properties = [
+#    "auto.create.topics.enable=true",
+#    "default.replication.factor=3",
+#    "min.insync.replicas=2",
+#    "num.io.threads=8",
+#    "num.network.threads=5",
+#    "num.partitions=10",
+#    "num.replica.fetchers=2",
+#    "socket.request.max.bytes=104857600",
+#    "delete.topic.enable=true",
+#    "unclean.leader.election.enable=true"
+#  ]
+#}
 
 variable "ecs_url" {}
 variable "ecs_username" {}
@@ -325,4 +326,12 @@ variable "tag_environment" {
 
 variable "tag_name" {
   default = "bradecs"
+}
+
+variable "region" {
+  default = "us-west-2"
+}
+
+variable "profile" {
+  default = "foghorn-io-brad"
 }
