@@ -15,7 +15,7 @@ data "template_file" "ecs_container_definition" {
   template = file("./base.tpl")
   vars = {
     name     = var.tag_name
-    image    = "sbwise/flaskhelloworld:0.1.0"
+    image    = "sbwise/flaskhelloworld:0.1.2"
     region   = var.region
     loggroup = aws_cloudwatch_log_group.awslogs-ecs-fargate-sumo.name
   }
