@@ -12,3 +12,8 @@ This example implementation builds an ECS cluster in the Foghorn Supportfog AWS 
 }
 
 ```
+
+
+## Doc sources
+https://help.sumologic.com/03Send-Data/Collect-from-Other-Data-Sources/AWS_Fargate_log_collection#collect%C2%A0fargate%C2%A0container-logs
+https://docs.aws.amazon.com/AmazonECS/latest/developerguide/using_awslogs.html
